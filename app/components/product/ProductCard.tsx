@@ -39,6 +39,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const handleAddToCart = () => {
     addToCart(product, 1);
+    // onAddToCart callback is optional and for analytics/notifications only
     onAddToCart?.(product, 1);
   };
 

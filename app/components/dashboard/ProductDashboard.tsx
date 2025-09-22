@@ -62,13 +62,10 @@ export const ProductDashboard = () => {
     [productService]
   );
 
-  const handleSearch = useCallback(
-    async (filters: SearchFilters) => {
-      setSearchFilters(filters);
-      await loadProducts(filters);
-    },
-    [loadProducts]
-  );
+  const handleSearch = useCallback(async (filters: SearchFilters) => {
+    setSearchFilters(filters);
+    // Don't call loadProducts here - let the useEffect handle it
+  }, []);
 
   const handleReset = useCallback(() => {
     const resetFilters = { query: "" };
@@ -80,12 +77,11 @@ export const ProductDashboard = () => {
     loadProducts(searchFilters);
   }, [loadProducts, searchFilters]);
 
-  const handleAddToCart = useCallback(
-    (product: Product) => {
-      addToCart(product, 1);
-    },
-    [addToCart]
-  );
+  const handleAddToCart = useCallback((product: Product) => {
+    // ProductCard already handles addToCart via useCart hook
+    // This callback is for additional actions like analytics, notifications, etc.
+    console.log(`Added ${product.name} to cart`);
+  }, []);
 
   const handleCartOpen = useCallback(() => {
     setIsCartOpen(true);
@@ -95,9 +91,10 @@ export const ProductDashboard = () => {
     setIsCartOpen(false);
   }, []);
 
+  // Load products on mount and whenever searchFilters change
   useEffect(() => {
-    loadProducts();
-  }, [loadProducts]);
+    loadProducts(searchFilters);
+  }, [searchFilters, loadProducts]);
 
   if (loading) {
     return (

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { ProductCard } from "../ProductCard";
 import type { Product } from "~/types/product";
 import { Provider } from "~/components/ui/provider";
+import { CartProvider } from "~/context/CartContext";
 
 const mockProduct: Product = {
   id: "1",
@@ -18,7 +19,11 @@ const mockProduct: Product = {
 };
 
 const renderWithProvider = (component: React.ReactElement) => {
-  return render(<Provider>{component}</Provider>);
+  return render(
+    <Provider>
+      <CartProvider>{component}</CartProvider>
+    </Provider>
+  );
 };
 
 describe("ProductCard", () => {

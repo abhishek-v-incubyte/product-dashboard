@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import {
   Box,
   Input,
@@ -12,8 +18,17 @@ import {
   Field,
   NativeSelect,
   InputGroup,
+  Collapsible,
+  Flex,
+  Separator,
 } from "@chakra-ui/react";
-import { HiSearch, HiX, HiFilter } from "react-icons/hi";
+import {
+  HiSearch,
+  HiX,
+  HiFilter,
+  HiChevronDown,
+  HiChevronUp,
+} from "react-icons/hi";
 import type { SearchFilters } from "~/types/product";
 
 interface SearchBarProps {
@@ -24,7 +39,7 @@ interface SearchBarProps {
   isLoading?: boolean;
 }
 
-export const SearchBar: React.FC<SearchBarProps> = ({
+const SearchBarComponent: React.FC<SearchBarProps> = ({
   filters,
   onSearch,
   onReset,
@@ -32,17 +47,38 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   isLoading = false,
 }) => {
   const [localQuery, setLocalQuery] = useState(filters.query || "");
+  const [showFilters, setShowFilters] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const filtersRef = useRef(filters);
+
+  // Keep filters ref up to date
+  filtersRef.current = filters;
+
+  // Memoize the search function to prevent unnecessary re-renders
+  const debouncedSearch = useCallback(
+    (query: string) => {
+      onSearch({ ...filtersRef.current, query });
+    },
+    [onSearch]
+  );
+
+  // Sync local query with filters prop when it changes externally
+  useEffect(() => {
+    if (filters.query !== localQuery) {
+      setLocalQuery(filters.query || "");
+    }
+  }, [filters.query]);
 
   // Debounce search query
   useEffect(() => {
     const timeoutId = setTimeout(() => {
       if (localQuery !== filters.query) {
-        onSearch({ ...filters, query: localQuery });
+        debouncedSearch(localQuery);
       }
     }, 300);
 
     return () => clearTimeout(timeoutId);
-  }, [localQuery, filters, onSearch]);
+  }, [localQuery, filters.query, debouncedSearch]);
 
   // Count active filters
   const activeFilterCount = useMemo(() => {
@@ -99,122 +135,216 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   };
 
   return (
-    <Card.Root>
-      <Card.Body>
-        <VStack gap={4} align="stretch">
-          {/* Main Search Row */}
-          <HStack gap={3}>
-            <InputGroup flex="1" startElement={<HiSearch color="gray.400" />}>
+    <Card.Root shadow="sm" borderRadius="lg">
+      <Card.Body p={6}>
+        <VStack gap={6} align="stretch">
+          {/* Main Search Bar */}
+          <Flex gap={4} align="center">
+            <InputGroup
+              flex="2"
+              minW="300px"
+              startElement={<HiSearch color="gray" size="20px" />}
+            >
               <Input
-                placeholder="Search products..."
+                ref={inputRef}
+                size="lg"
+                placeholder="Search products by name, category, or description..."
                 value={localQuery}
                 onChange={handleInputChange}
                 disabled={isLoading}
                 role="searchbox"
                 aria-label="Search products"
+                bg="white"
+                _focus={{
+                  borderColor: "blue.500",
+                  shadow: "0 0 0 1px var(--chakra-colors-blue-500)",
+                }}
               />
             </InputGroup>
 
-            {categories.length > 0 && (
-              <Field.Root>
-                <Field.Label srOnly>Category</Field.Label>
-                <NativeSelect.Root width="150px">
-                  <NativeSelect.Field
-                    value={filters.category || "All"}
-                    onChange={handleCategoryChange}
-                    aria-label="Category"
-                  >
-                    <option value="All">All Categories</option>
-                    {categories
-                      .filter((cat) => cat !== "All")
-                      .map((category) => (
-                        <option key={category} value={category}>
-                          {category}
-                        </option>
-                      ))}
-                  </NativeSelect.Field>
-                  <NativeSelect.Indicator />
-                </NativeSelect.Root>
-              </Field.Root>
+            {/* Right side controls - Category + Filter button */}
+            <Flex flex="1" gap={3} align="center" justify="flex-end">
+              {/* Quick Category Filter */}
+              {categories.length > 0 && (
+                <Field.Root flex="1" maxW="200px">
+                  <NativeSelect.Root size="lg">
+                    <NativeSelect.Field
+                      value={filters.category || "All"}
+                      onChange={handleCategoryChange}
+                      aria-label="Category"
+                      bg="white"
+                    >
+                      <option value="All">All Categories</option>
+                      {categories
+                        .filter((cat) => cat !== "All")
+                        .map((category) => (
+                          <option key={category} value={category}>
+                            {category}
+                          </option>
+                        ))}
+                    </NativeSelect.Field>
+                    <NativeSelect.Indicator />
+                  </NativeSelect.Root>
+                </Field.Root>
+              )}
+
+              {/* Filter Toggle Button */}
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => setShowFilters(!showFilters)}
+                flexShrink="0"
+              >
+                <HiFilter />
+                Filters
+                {activeFilterCount > 0 && (
+                  <Badge ml={2} colorPalette="blue" variant="solid">
+                    {activeFilterCount}
+                  </Badge>
+                )}
+                {showFilters ? <HiChevronUp /> : <HiChevronDown />}
+              </Button>
+            </Flex>
+
+            {/* Clear Filters */}
+            {activeFilterCount > 0 && (
+              <Button
+                variant="ghost"
+                colorPalette="red"
+                size="lg"
+                onClick={onReset}
+              >
+                <HiX />
+                Clear All
+              </Button>
             )}
+          </Flex>
 
-            <Button variant="ghost" colorPalette="red" onClick={onReset}>
-              Clear Filters
-            </Button>
-          </HStack>
+          {/* Collapsible Advanced Filters */}
+          <Collapsible.Root open={showFilters}>
+            <Collapsible.Content>
+              <VStack gap={4} align="stretch">
+                <Separator />
 
-          {/* Price Range */}
-          <HStack gap={3}>
-            <Input
-              type="number"
-              placeholder="Min price"
-              value={filters.minPrice || ""}
-              onChange={handleMinPriceChange}
-              size="sm"
-              width="120px"
-            />
-            <Input
-              type="number"
-              placeholder="Max price"
-              value={filters.maxPrice || ""}
-              onChange={handleMaxPriceChange}
-              size="sm"
-              width="120px"
-            />
+                {/* Price Range Section */}
+                <Box>
+                  <Text
+                    fontSize="sm"
+                    fontWeight="semibold"
+                    mb={3}
+                    color="gray.700"
+                  >
+                    Price Range
+                  </Text>
+                  <HStack gap={4}>
+                    <Field.Root>
+                      <Field.Label fontSize="xs" color="gray.600">
+                        Min Price
+                      </Field.Label>
+                      <Input
+                        type="number"
+                        placeholder="$0"
+                        value={filters.minPrice || ""}
+                        onChange={handleMinPriceChange}
+                        size="sm"
+                        width="120px"
+                        bg="white"
+                      />
+                    </Field.Root>
 
-            {/* Stock Status */}
-            <Field.Root>
-              <Field.Label srOnly>Stock Status</Field.Label>
-              <NativeSelect.Root size="sm" width="130px">
-                <NativeSelect.Field
-                  value={
-                    filters.inStock === undefined
-                      ? ""
-                      : filters.inStock.toString()
-                  }
-                  onChange={handleStockChange}
-                  aria-label="Stock Status"
-                >
-                  <option value="">All Stock</option>
-                  <option value="true">In Stock</option>
-                  <option value="false">Out of Stock</option>
-                </NativeSelect.Field>
-                <NativeSelect.Indicator />
-              </NativeSelect.Root>
-            </Field.Root>
+                    <Text mt={6} color="gray.400" fontSize="sm">
+                      to
+                    </Text>
 
-            {/* Minimum Rating */}
-            <Field.Root>
-              <Field.Label srOnly>Minimum Rating</Field.Label>
-              <NativeSelect.Root size="sm" width="130px">
-                <NativeSelect.Field
-                  value={filters.minRating || ""}
-                  onChange={handleRatingChange}
-                  aria-label="Minimum Rating"
-                >
-                  <option value="">Any Rating</option>
-                  <option value="1">1+ Stars</option>
-                  <option value="2">2+ Stars</option>
-                  <option value="3">3+ Stars</option>
-                  <option value="4">4+ Stars</option>
-                  <option value="4.5">4.5+ Stars</option>
-                </NativeSelect.Field>
-                <NativeSelect.Indicator />
-              </NativeSelect.Root>
-            </Field.Root>
-          </HStack>
+                    <Field.Root>
+                      <Field.Label fontSize="xs" color="gray.600">
+                        Max Price
+                      </Field.Label>
+                      <Input
+                        type="number"
+                        placeholder="$999"
+                        value={filters.maxPrice || ""}
+                        onChange={handleMaxPriceChange}
+                        size="sm"
+                        width="120px"
+                        bg="white"
+                      />
+                    </Field.Root>
+                  </HStack>
+                </Box>
 
-          {/* Active Filters Summary */}
-          {activeFilterCount > 0 && (
-            <Box>
-              <Text fontSize="sm" color="fg.muted">
-                {activeFilterCount}{" "}
-                {activeFilterCount === 1 ? "filter" : "filters"} applied
-              </Text>
-            </Box>
-          )}
+                {/* Additional Filters */}
+                <HStack gap={6} wrap="wrap">
+                  {/* Stock Status */}
+                  <Field.Root>
+                    <Field.Label fontSize="xs" color="gray.600" mb={2}>
+                      Stock Status
+                    </Field.Label>
+                    <NativeSelect.Root size="sm" width="140px">
+                      <NativeSelect.Field
+                        value={
+                          filters.inStock === undefined
+                            ? ""
+                            : filters.inStock.toString()
+                        }
+                        onChange={handleStockChange}
+                        aria-label="Stock Status"
+                        bg="white"
+                      >
+                        <option value="">All Items</option>
+                        <option value="true">In Stock Only</option>
+                        <option value="false">Out of Stock</option>
+                      </NativeSelect.Field>
+                      <NativeSelect.Indicator />
+                    </NativeSelect.Root>
+                  </Field.Root>
+
+                  {/* Minimum Rating */}
+                  <Field.Root>
+                    <Field.Label fontSize="xs" color="gray.600" mb={2}>
+                      Minimum Rating
+                    </Field.Label>
+                    <NativeSelect.Root size="sm" width="140px">
+                      <NativeSelect.Field
+                        value={filters.minRating || ""}
+                        onChange={handleRatingChange}
+                        aria-label="Minimum Rating"
+                        bg="white"
+                      >
+                        <option value="">Any Rating</option>
+                        <option value="1">⭐ 1+ Stars</option>
+                        <option value="2">⭐ 2+ Stars</option>
+                        <option value="3">⭐ 3+ Stars</option>
+                        <option value="4">⭐ 4+ Stars</option>
+                        <option value="4.5">⭐ 4.5+ Stars</option>
+                      </NativeSelect.Field>
+                      <NativeSelect.Indicator />
+                    </NativeSelect.Root>
+                  </Field.Root>
+                </HStack>
+
+                {/* Active Filters Summary */}
+                {activeFilterCount > 0 && (
+                  <Box
+                    p={3}
+                    bg="blue.50"
+                    borderRadius="md"
+                    border="1px solid"
+                    borderColor="blue.200"
+                  >
+                    <Text fontSize="sm" color="blue.800" fontWeight="medium">
+                      🔍 {activeFilterCount} filter
+                      {activeFilterCount !== 1 ? "s" : ""} active
+                    </Text>
+                  </Box>
+                )}
+              </VStack>
+            </Collapsible.Content>
+          </Collapsible.Root>
         </VStack>
       </Card.Body>
     </Card.Root>
   );
 };
+
+export const SearchBar = React.memo(SearchBarComponent);

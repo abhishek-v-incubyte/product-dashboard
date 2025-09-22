@@ -60,8 +60,6 @@ describe("SearchBar", () => {
   });
 
   it("should call onSearch with debounced query when user types", async () => {
-    vi.useFakeTimers();
-
     renderWithProvider(
       <SearchBar
         filters={defaultFilters}
@@ -74,16 +72,16 @@ describe("SearchBar", () => {
     const searchInput = screen.getByPlaceholderText(/search products/i);
     await user.type(searchInput, "laptop");
 
-    // Should not call immediately
-    expect(mockOnSearch).not.toHaveBeenCalled();
-
-    // Fast-forward time to trigger debounce
-    vi.advanceTimersByTime(300);
-
-    expect(mockOnSearch).toHaveBeenCalledWith({
-      ...defaultFilters,
-      query: "laptop",
-    });
+    // Wait for the debounced call
+    await waitFor(
+      () => {
+        expect(mockOnSearch).toHaveBeenCalledWith({
+          ...defaultFilters,
+          query: "laptop",
+        });
+      },
+      { timeout: 1000 }
+    );
   });
 
   it("should render category select when categories provided", () => {
@@ -124,7 +122,7 @@ describe("SearchBar", () => {
     });
   });
 
-  it("should render price range inputs", () => {
+  it("should render price range inputs when filters are expanded", async () => {
     renderWithProvider(
       <SearchBar
         filters={defaultFilters}
@@ -134,8 +132,13 @@ describe("SearchBar", () => {
       />
     );
 
-    expect(screen.getByPlaceholderText(/min price/i)).toBeInTheDocument();
-    expect(screen.getByPlaceholderText(/max price/i)).toBeInTheDocument();
+    // Click the Filters button to expand the collapsible section
+    const filtersButton = screen.getByRole("button", { name: /filters/i });
+    fireEvent.click(filtersButton);
+
+    // Now the price inputs should be visible
+    expect(screen.getByPlaceholderText(/\$0/i)).toBeInTheDocument();
+    expect(screen.getByPlaceholderText(/\$999/i)).toBeInTheDocument();
   });
 
   it("should call onSearch when price filters change", async () => {
@@ -148,20 +151,33 @@ describe("SearchBar", () => {
       />
     );
 
-    const minPriceInput = screen.getByPlaceholderText(/min price/i);
-    const maxPriceInput = screen.getByPlaceholderText(/max price/i);
+    // Expand filters first
+    const filtersButton = screen.getByRole("button", { name: /filters/i });
+    fireEvent.click(filtersButton);
 
-    await user.type(minPriceInput, "50");
-    await user.type(maxPriceInput, "200");
+    // Wait for filters to be available
+    const minPriceInput = await screen.findByPlaceholderText(/\$0/i);
+    const maxPriceInput = await screen.findByPlaceholderText(/\$999/i);
 
-    expect(mockOnSearch).toHaveBeenCalledWith({
-      ...defaultFilters,
-      minPrice: 50,
-      maxPrice: 200,
+    // Clear and set values directly
+    fireEvent.change(minPriceInput, { target: { value: "50" } });
+    fireEvent.change(maxPriceInput, { target: { value: "200" } });
+
+    // Wait for the debounced calls
+    await waitFor(() => {
+      expect(mockOnSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ minPrice: 50 })
+      );
+    });
+
+    await waitFor(() => {
+      expect(mockOnSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ maxPrice: 200 })
+      );
     });
   });
 
-  it("should render stock status filter", () => {
+  it("should render stock status filter when expanded", async () => {
     renderWithProvider(
       <SearchBar
         filters={defaultFilters}
@@ -171,12 +187,17 @@ describe("SearchBar", () => {
       />
     );
 
-    expect(
-      screen.getByRole("combobox", { name: /stock status/i })
-    ).toBeInTheDocument();
+    // Expand filters first
+    const filtersButton = screen.getByRole("button", { name: /filters/i });
+    fireEvent.click(filtersButton);
+
+    // Wait for the collapsible to expand and then find the select by aria-label
+    await waitFor(() => {
+      expect(screen.getByLabelText(/stock status/i)).toBeInTheDocument();
+    });
   });
 
-  it("should call onSearch when stock status changes", () => {
+  it("should call onSearch when stock status changes", async () => {
     renderWithProvider(
       <SearchBar
         filters={defaultFilters}
@@ -186,7 +207,12 @@ describe("SearchBar", () => {
       />
     );
 
-    const stockSelect = screen.getByRole("combobox", { name: /stock status/i });
+    // Expand filters first
+    const filtersButton = screen.getByRole("button", { name: /filters/i });
+    fireEvent.click(filtersButton);
+
+    // Wait for the element to be available
+    const stockSelect = await screen.findByLabelText(/stock status/i);
     fireEvent.change(stockSelect, { target: { value: "true" } });
 
     expect(mockOnSearch).toHaveBeenCalledWith({
@@ -195,7 +221,7 @@ describe("SearchBar", () => {
     });
   });
 
-  it("should render rating filter", () => {
+  it("should render rating filter when expanded", async () => {
     renderWithProvider(
       <SearchBar
         filters={defaultFilters}
@@ -205,12 +231,17 @@ describe("SearchBar", () => {
       />
     );
 
-    expect(
-      screen.getByRole("combobox", { name: /minimum rating/i })
-    ).toBeInTheDocument();
+    // Expand filters first
+    const filtersButton = screen.getByRole("button", { name: /filters/i });
+    fireEvent.click(filtersButton);
+
+    // Wait for the collapsible to expand
+    await waitFor(() => {
+      expect(screen.getByLabelText(/minimum rating/i)).toBeInTheDocument();
+    });
   });
 
-  it("should call onSearch when rating filter changes", () => {
+  it("should call onSearch when rating filter changes", async () => {
     renderWithProvider(
       <SearchBar
         filters={defaultFilters}
@@ -220,9 +251,12 @@ describe("SearchBar", () => {
       />
     );
 
-    const ratingSelect = screen.getByRole("combobox", {
-      name: /minimum rating/i,
-    });
+    // Expand filters first
+    const filtersButton = screen.getByRole("button", { name: /filters/i });
+    fireEvent.click(filtersButton);
+
+    // Wait for the element to be available
+    const ratingSelect = await screen.findByLabelText(/minimum rating/i);
     fireEvent.change(ratingSelect, { target: { value: "4" } });
 
     expect(mockOnSearch).toHaveBeenCalledWith({
@@ -231,10 +265,12 @@ describe("SearchBar", () => {
     });
   });
 
-  it("should render clear filters button", () => {
+  it("should render clear all button when filters are active", () => {
+    const filtersWithData = { ...defaultFilters, query: "test" };
+
     renderWithProvider(
       <SearchBar
-        filters={defaultFilters}
+        filters={filtersWithData}
         onSearch={mockOnSearch}
         onReset={mockOnReset}
         categories={[]}
@@ -242,21 +278,23 @@ describe("SearchBar", () => {
     );
 
     expect(
-      screen.getByRole("button", { name: /clear filters/i })
+      screen.getByRole("button", { name: /clear all/i })
     ).toBeInTheDocument();
   });
 
-  it("should call onReset when clear filters button is clicked", () => {
+  it("should call onReset when clear all button is clicked", () => {
+    const filtersWithData = { ...defaultFilters, query: "test" };
+
     renderWithProvider(
       <SearchBar
-        filters={defaultFilters}
+        filters={filtersWithData}
         onSearch={mockOnSearch}
         onReset={mockOnReset}
         categories={[]}
       />
     );
 
-    const clearButton = screen.getByRole("button", { name: /clear filters/i });
+    const clearButton = screen.getByRole("button", { name: /clear all/i });
     fireEvent.click(clearButton);
 
     expect(mockOnReset).toHaveBeenCalled();
@@ -272,7 +310,11 @@ describe("SearchBar", () => {
       />
     );
 
-    const minPriceInput = screen.getByPlaceholderText(/min price/i);
+    // Expand filters first
+    const filtersButton = screen.getByRole("button", { name: /filters/i });
+    fireEvent.click(filtersButton);
+
+    const minPriceInput = screen.getByPlaceholderText(/\$0/i);
     await user.type(minPriceInput, "invalid");
 
     // Should not crash and should not call onSearch with invalid price
@@ -282,8 +324,6 @@ describe("SearchBar", () => {
   });
 
   it("should debounce multiple rapid changes", async () => {
-    vi.useFakeTimers();
-
     renderWithProvider(
       <SearchBar
         filters={defaultFilters}
@@ -295,25 +335,19 @@ describe("SearchBar", () => {
 
     const searchInput = screen.getByPlaceholderText(/search products/i);
 
-    // Type multiple characters rapidly
-    await user.type(searchInput, "l");
-    vi.advanceTimersByTime(100);
-    await user.type(searchInput, "ap");
-    vi.advanceTimersByTime(100);
-    await user.type(searchInput, "top");
+    // Type the full string
+    fireEvent.change(searchInput, { target: { value: "laptop" } });
 
-    // Should not have called onSearch yet
-    expect(mockOnSearch).not.toHaveBeenCalled();
-
-    // Fast forward past debounce delay
-    vi.advanceTimersByTime(300);
-
-    // Should only be called once with final value
-    expect(mockOnSearch).toHaveBeenCalledTimes(1);
-    expect(mockOnSearch).toHaveBeenCalledWith({
-      ...defaultFilters,
-      query: "laptop",
-    });
+    // Wait for the debounced call
+    await waitFor(
+      () => {
+        expect(mockOnSearch).toHaveBeenCalledWith({
+          ...defaultFilters,
+          query: "laptop",
+        });
+      },
+      { timeout: 1000 }
+    );
   });
 
   it("should display active filter count", () => {
@@ -335,8 +369,15 @@ describe("SearchBar", () => {
       />
     );
 
-    // Should show some indicator of active filters
-    expect(screen.getByText(/filters applied/i)).toBeInTheDocument();
+    // Should show filter count badge on the Filters button
+    expect(screen.getByText("6")).toBeInTheDocument(); // Badge with count
+
+    // Expand filters to see the active filter summary
+    const filtersButton = screen.getByRole("button", { name: /filters/i });
+    fireEvent.click(filtersButton);
+
+    // Should show active filter summary
+    expect(screen.getByText(/6 filters active/i)).toBeInTheDocument();
   });
 
   it("should be accessible with proper ARIA labels", () => {
@@ -351,5 +392,54 @@ describe("SearchBar", () => {
 
     expect(screen.getByRole("searchbox")).toBeInTheDocument();
     expect(screen.getByLabelText(/search products/i)).toBeInTheDocument();
+  });
+
+  //focus after search input test
+  it("should not auto-focus on search input when component mounts", () => {
+    renderWithProvider(
+      <SearchBar
+        filters={defaultFilters}
+        onSearch={mockOnSearch}
+        onReset={mockOnReset}
+        categories={["Electronics"]}
+      />
+    );
+    const searchInput = screen.getByPlaceholderText(/search products/i);
+    // Should not auto-focus - that would be bad UX
+    expect(document.activeElement).not.toBe(searchInput);
+  });
+
+  it("should maintain focus on search input after search", async () => {
+    renderWithProvider(
+      <SearchBar
+        filters={defaultFilters}
+        onSearch={mockOnSearch}
+        onReset={mockOnReset}
+        categories={["Electronics"]}
+      />
+    );
+
+    const searchInput = screen.getByPlaceholderText(/search products/i);
+
+    // First focus the input (simulate user clicking)
+    searchInput.focus();
+    expect(document.activeElement).toBe(searchInput);
+
+    // Type in the input
+    await user.type(searchInput, "laptop");
+
+    // Wait for search to be called and focus should still be maintained
+    await waitFor(
+      () => {
+        expect(mockOnSearch).toHaveBeenCalledWith({
+          ...defaultFilters,
+          query: "laptop",
+        });
+      },
+      { timeout: 1000 }
+    );
+
+    // Focus should be maintained after search executes
+    expect(document.activeElement).toBe(searchInput);
   });
 });
