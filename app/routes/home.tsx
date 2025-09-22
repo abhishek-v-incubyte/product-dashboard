@@ -1,4 +1,5 @@
 import type { Route } from "./+types/home";
+import { Link } from "react-router";
 import {
   Box,
   Heading,
@@ -27,9 +28,16 @@ export function meta({}: Route.MetaArgs) {
 export default function Home() {
   return (
     <Box p={8} maxW="1200px" mx="auto">
-      <Heading mb={6} color="teal.500" size="2xl">
-        🎉 Chakra UI is working!
-      </Heading>
+      <Flex justify="space-between" align="center" mb={6}>
+        <Heading color="teal.500" size="2xl">
+          🎉 Chakra UI is working!
+        </Heading>
+        <Link to="/dashboard">
+          <Button colorPalette="blue" size="lg">
+            Go to Product Dashboard
+          </Button>
+        </Link>
+      </Flex>
 
       <Alert.Root status="success" mb={6}>
         <Alert.Indicator />
